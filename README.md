@@ -33,8 +33,8 @@ scam-report-demo/
 ### 1. 克隆專案
 
 ```bash
-git clone <your-repo-url>
-cd scam-report-demo
+git clone https://github.com/alex97036/TruthDAO.git
+cd TruthDAO
 ```
 
 ### 2. 後端設置
@@ -318,20 +318,17 @@ pm2 logs scam-report-backend
 4. 推送分支：`git push origin feature/新功能`
 5. 提交 Pull Request
 
-## 📄 授權條款
-
-本專案採用 ISC 授權條款 - 詳見 [LICENSE](LICENSE) 文件
 
 ## 👥 開發團隊
 
-- **專案維護者**: [您的名字]
-- **技術顧問**: [顧問名字]
+- **專案維護者**: Alex Hsu
+- **GitHub**: [alex97036](https://github.com/alex97036)
 
 ## 📞 聯絡資訊
 
-- **專案首頁**: [GitHub Repository URL]
-- **問題回報**: [GitHub Issues URL]
-- **技術討論**: [Discord/Telegram Channel]
+- **專案首頁**: [https://github.com/alex97036/TruthDAO](https://github.com/alex97036/TruthDAO)
+- **問題回報**: [https://github.com/alex97036/TruthDAO/issues](https://github.com/alex97036/TruthDAO/issues)
+- **技術討論**: 歡迎透過 GitHub Issues 進行技術討論
 
 ---
 
