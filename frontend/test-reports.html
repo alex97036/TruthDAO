@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>檢舉記錄測試頁面</title>
+  <!-- 引入 Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
     .report { border: 1px solid #ddd; margin: 10px 0; padding: 15px; border-radius: 5px; }
@@ -12,6 +14,35 @@
     button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
     button:hover { background: #0056b3; }
     .stats { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+    .chart-container { 
+      margin-top: 20px; 
+      position: relative; 
+      height: 300px; 
+      width: 100%;
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    .chart-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .chart-tab {
+      padding: 8px 15px;
+      background: #e9ecef;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      color: #495057;
+    }
+    .chart-tab.active {
+      background: #007bff;
+      color: white;
+    }
     
     /* 標籤樣式 */
     .tag {
@@ -69,6 +100,15 @@
   <div class="stats">
     <h3>📈 統計資訊</h3>
     <div id="stats">載入中...</div>
+    
+    <!-- 圖表容器 -->
+    <div class="chart-container" id="chartContainer" style="display: none;">
+      <div class="chart-tabs">
+        <button class="chart-tab active" data-chart="tagChart">標籤分布圖</button>
+        <button class="chart-tab" data-chart="timeChart">時間趨勢圖</button>
+      </div>
+      <canvas id="reportChart"></canvas>
+    </div>
   </div>
 
   <div class="filter-section">
@@ -209,27 +249,228 @@
       resultDiv.innerHTML = html;
     }
 
-    // 載入統計資訊
+    // 全局變數存儲圖表實例
+    let currentChart = null;
+    let currentChartType = 'tagChart'; // 預設圖表類型
+    
+    // 載入統計資訊與圖表
     async function loadStats() {
       const statsDiv = document.getElementById('stats');
+      const chartContainer = document.getElementById('chartContainer');
 
       try {
-        const response = await fetch(`${API_BASE}/stats`);
-        const data = await response.json();
-
-        if (data.success) {
-          const stats = data.stats;
+        // 同時取得統計資訊和檢舉數據
+        const [statsResponse, reportsResponse] = await Promise.all([
+          fetch(`${API_BASE}/stats`),
+          fetch(`${API_BASE}/reports`)
+        ]);
+        
+        const statsData = await statsResponse.json();
+        const reportsData = await reportsResponse.json();
+        
+        if (statsData.success) {
+          const stats = statsData.stats;
           statsDiv.innerHTML = `
             <p><strong>總檢舉數:</strong> ${stats.total}</p>
             <p><strong>今日檢舉:</strong> ${stats.today}</p>
             <p><strong>最後更新:</strong> ${new Date(stats.lastUpdated).toLocaleString('zh-TW')}</p>
           `;
+          
+          // 顯示圖表容器
+          chartContainer.style.display = 'block';
+          
+          // 如果檢舉數據也載入成功，創建圖表
+          if (reportsData.success && reportsData.reports && reportsData.reports.length > 0) {
+            allReports = reportsData.reports;
+            createChart(currentChartType);
+            
+            // 添加圖表標籤事件監聽
+            document.querySelectorAll('.chart-tab').forEach(tab => {
+              tab.addEventListener('click', () => {
+                document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentChartType = tab.dataset.chart;
+                createChart(currentChartType);
+              });
+            });
+          } else {
+            chartContainer.innerHTML = '<p>沒有足夠的數據生成圖表</p>';
+          }
         } else {
-          statsDiv.innerHTML = `<span style="color: red;">錯誤: ${data.error}</span>`;
+          statsDiv.innerHTML = `<span style="color: red;">錯誤: ${statsData.error}</span>`;
         }
       } catch (error) {
         statsDiv.innerHTML = `<span style="color: red;">連接錯誤: ${error.message}</span>`;
       }
+    }
+    
+    // 創建圖表函數
+    function createChart(chartType) {
+      const ctx = document.getElementById('reportChart');
+      
+      // 如果已經有圖表，先銷毀它
+      if (currentChart) {
+        currentChart.destroy();
+      }
+      
+      if (chartType === 'tagChart') {
+        createTagDistributionChart(ctx);
+      } else if (chartType === 'timeChart') {
+        createTimeSeriesChart(ctx);
+      }
+    }
+    
+    // 創建標籤分布圖
+    function createTagDistributionChart(ctx) {
+      // 分析標籤分布
+      const tagCounts = {};
+      
+      allReports.forEach(report => {
+        if (report.tags && report.tags.length) {
+          report.tags.forEach(tag => {
+            tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+          });
+        } else {
+          tagCounts['無標籤'] = (tagCounts['無標籤'] || 0) + 1;
+        }
+      });
+      
+      // 準備圖表數據
+      const labels = Object.keys(tagCounts);
+      const data = Object.values(tagCounts);
+      
+      // 生成隨機顏色
+      const backgroundColors = labels.map(() => 
+        `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 0.7)`
+      );
+      
+      // 創建圖表
+      currentChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '檢舉數量',
+            data: data,
+            backgroundColor: backgroundColors,
+            borderColor: backgroundColors.map(color => color.replace('0.7', '1')),
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: {
+              display: true,
+              text: '檢舉標籤分布統計',
+              font: {
+                size: 16
+              }
+            },
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: '檢舉數量'
+              },
+              ticks: {
+                precision: 0
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: '標籤類型'
+              }
+            }
+          }
+        }
+      });
+    }
+    
+    // 創建時間趨勢圖
+    function createTimeSeriesChart(ctx) {
+      // 獲取最近30天的日期範圍
+      const today = new Date();
+      const dateLabels = [];
+      const reportCounts = {};
+      
+      // 生成最近30天的日期標籤
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(today.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        dateLabels.push(dateStr);
+        reportCounts[dateStr] = 0;
+      }
+      
+      // 計算每日檢舉數
+      allReports.forEach(report => {
+        const date = new Date(report.timestamp * 1000);
+        const dateStr = date.toISOString().split('T')[0];
+        if (reportCounts[dateStr] !== undefined) {
+          reportCounts[dateStr]++;
+        }
+      });
+      
+      // 準備圖表數據
+      const data = dateLabels.map(date => reportCounts[date]);
+      
+      // 創建圖表
+      currentChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: dateLabels,
+          datasets: [{
+            label: '檢舉數量',
+            data: data,
+            backgroundColor: 'rgba(54, 162, 235, 0.7)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: {
+              display: true,
+              text: '檢舉日期統計 (近30天)',
+              font: {
+                size: 16
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: '檢舉數量'
+              },
+              ticks: {
+                precision: 0
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: '日期'
+              },
+              ticks: {
+                maxRotation: 45,
+                minRotation: 45
+              }
+            }
+          }
+        }
+      });
     }
 
     // 測試 API 可用性
