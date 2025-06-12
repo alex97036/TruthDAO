@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>檢舉記錄測試頁面</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    .report { border: 1px solid #ddd; margin: 10px 0; padding: 15px; border-radius: 5px; }
+    .error { color: red; padding: 10px; background: #ffe6e6; border-radius: 5px; }
+    .success { color: green; padding: 10px; background: #e6ffe6; border-radius: 5px; }
+    button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    .stats { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+    
+    /* 標籤樣式 */
+    .tag {
+      background: linear-gradient(135deg, #28a745, #20c997);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      margin-right: 5px;
+      display: inline-block;
+      margin-bottom: 3px;
+    }
+    
+    .no-tags {
+      color: #6c757d;
+      font-style: italic;
+    }
+    
+    .filter-section {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    
+    .filter-btn {
+      padding: 5px 10px;
+      margin: 2px;
+      background: #6c757d;
+      color: white;
+      border: none;
+      border-radius: 15px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    
+    .filter-btn.active {
+      background: #007bff;
+    }
+    
+    .filter-btn:hover {
+      background: #5a6268;
+    }
+    
+    .filter-btn.active:hover {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <h1>📊 檢舉記錄測試頁面</h1>
+  <p>此頁面用於測試後端 API 和顯示所有檢舉記錄</p>
+
+  <div class="stats">
+    <h3>📈 統計資訊</h3>
+    <div id="stats">載入中...</div>
+  </div>
+
+  <div class="filter-section">
+    <h3>🏷️ 標籤篩選</h3>
+    <div id="filterButtons">
+      <button class="filter-btn active" data-filter="all">全部</button>
+    </div>
+  </div>
+
+  <div>
+    <button onclick="loadReports()">🔄 載入所有檢舉</button>
+    <button onclick="loadStats()">📊 載入統計資訊</button>
+    <button onclick="testAPI()">🧪 測試 API</button>
+  </div>
+
+  <div id="result"></div>
+
+  <script>
+    const API_BASE = 'http://localhost:3000';
+    let allReports = [];
+    let currentFilter = 'all';
+
+    // 載入所有檢舉記錄
+    async function loadReports() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<p>載入中...</p>';
+
+      try {
+        const response = await fetch(`${API_BASE}/reports`);
+        const data = await response.json();
+
+        if (data.success) {
+          allReports = data.reports || [];
+          
+          if (allReports.length === 0) {
+            resultDiv.innerHTML = '<div class="success">✅ API 正常，但尚無檢舉記錄</div>';
+            return;
+          }
+
+          // 更新篩選按鈕
+          updateFilterButtons();
+          
+          // 顯示檢舉記錄
+          displayReports();
+          
+        } else {
+          resultDiv.innerHTML = `<div class="error">❌ API 錯誤: ${data.error}</div>`;
+        }
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 連接錯誤: ${error.message}</div>`;
+      }
+    }
+
+    // 更新篩選按鈕
+    function updateFilterButtons() {
+      const filterButtonsDiv = document.getElementById('filterButtons');
+      const allTags = new Set();
+      
+      // 收集所有標籤
+      allReports.forEach(report => {
+        if (report.tags && report.tags.length > 0) {
+          report.tags.forEach(tag => allTags.add(tag));
+        }
+      });
+
+      let buttonsHtml = '<button class="filter-btn active" data-filter="all" onclick="filterReports(\'all\')">全部</button>';
+      allTags.forEach(tag => {
+        buttonsHtml += `<button class="filter-btn" data-filter="${tag}" onclick="filterReports('${tag}')">${tag}</button>`;
+      });
+
+      filterButtonsDiv.innerHTML = buttonsHtml;
+    }
+
+    // 篩選檢舉記錄
+    function filterReports(filter) {
+      currentFilter = filter;
+      
+      // 更新按鈕狀態
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+      
+      // 顯示篩選後的記錄
+      displayReports();
+    }
+
+    // 顯示檢舉記錄
+    function displayReports() {
+      const resultDiv = document.getElementById('result');
+      
+      // 篩選記錄
+      let reportsToShow = allReports;
+      if (currentFilter !== 'all') {
+        reportsToShow = allReports.filter(report => 
+          report.tags && report.tags.includes(currentFilter)
+        );
+      }
+      
+      // 按時間倒序排列
+      const sortedReports = reportsToShow.sort((a, b) => b.timestamp - a.timestamp);
+      
+      if (sortedReports.length === 0) {
+        resultDiv.innerHTML = `<div class="success">📝 ${currentFilter === 'all' ? '尚無檢舉記錄' : `無「${currentFilter}」標籤的檢舉記錄`}</div>`;
+        return;
+      }
+
+      let html = `<div class="success">✅ 顯示 ${sortedReports.length} 筆檢舉記錄${currentFilter !== 'all' ? ` (篩選: ${currentFilter})` : ''}</div>`;
+      
+      sortedReports.forEach((report, index) => {
+        const date = new Date(report.timestamp * 1000).toLocaleString('zh-TW');
+        const shortReporter = `${report.reporter.substring(0, 6)}...${report.reporter.substring(38)}`;
+        
+        // 處理標籤顯示
+        const tagsHtml = report.tags && report.tags.length > 0 
+          ? report.tags.map(tag => `<span class="tag">${tag}</span>`).join('')
+          : '<span class="no-tags">無標籤</span>';
+        
+        // 處理內容預覽
+        const contentPreview = report.content && report.content !== '內容不可用'
+          ? (report.content.length > 80 ? report.content.substring(0, 80) + '...' : report.content)
+          : '內容不可用';
+        
+        html += `
+          <div class="report">
+            <h4>檢舉 #${allReports.length - allReports.indexOf(report)}</h4>
+            <p><strong>時間:</strong> ${date}</p>
+            <p><strong>詐騙類型標籤:</strong> ${tagsHtml}</p>
+            <p><strong>檢舉人:</strong> ${shortReporter}</p>
+            <p><strong>檢舉內容預覽:</strong> <em>"${contentPreview}"</em></p>
+            <p><strong>完整地址:</strong> <code style="font-size: 0.8rem;">${report.reporter}</code></p>
+            <p><strong>內容 CID:</strong> <code style="font-size: 0.8rem;">${report.cid}</code></p>
+            <p><strong>時間戳:</strong> ${report.timestamp}</p>
+          </div>
+        `;
+      });
+
+      resultDiv.innerHTML = html;
+    }
+
+    // 載入統計資訊
+    async function loadStats() {
+      const statsDiv = document.getElementById('stats');
+
+      try {
+        const response = await fetch(`${API_BASE}/stats`);
+        const data = await response.json();
+
+        if (data.success) {
+          const stats = data.stats;
+          statsDiv.innerHTML = `
+            <p><strong>總檢舉數:</strong> ${stats.total}</p>
+            <p><strong>今日檢舉:</strong> ${stats.today}</p>
+            <p><strong>最後更新:</strong> ${new Date(stats.lastUpdated).toLocaleString('zh-TW')}</p>
+          `;
+        } else {
+          statsDiv.innerHTML = `<span style="color: red;">錯誤: ${data.error}</span>`;
+        }
+      } catch (error) {
+        statsDiv.innerHTML = `<span style="color: red;">連接錯誤: ${error.message}</span>`;
+      }
+    }
+
+    // 測試 API 可用性
+    async function testAPI() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<p>測試 API 連接...</p>';
+
+      const tests = [
+        { name: '檢舉列表 API', url: `${API_BASE}/reports` },
+        { name: '統計資訊 API', url: `${API_BASE}/stats` }
+      ];
+
+      let html = '<h3>🧪 API 測試結果</h3>';
+
+      for (const test of tests) {
+        try {
+          const response = await fetch(test.url);
+          const data = await response.json();
+          
+          if (data.success) {
+            html += `<p>✅ ${test.name}: 正常</p>`;
+          } else {
+            html += `<p>⚠️ ${test.name}: 回應錯誤 - ${data.error}</p>`;
+          }
+        } catch (error) {
+          html += `<p>❌ ${test.name}: 連接失敗 - ${error.message}</p>`;
+        }
+      }
+
+      resultDiv.innerHTML = html;
+    }
+
+    // 頁面載入時自動載入統計資訊
+    window.onload = () => {
+      loadStats();
+    };
+  </script>
+</body>
+</html>

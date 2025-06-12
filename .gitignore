@@ -1,0 +1,23 @@
+# 環境變數文件（包含私鑰和API密鑰）
+backend/.env
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# 編譯輸出
+dist/
+build/
+
+# 日誌
+*.log
+logs/
